@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ImageForge</title>
+<style>
+:root {
+  --bg: #0d0d0f; --surface: #111115; --surface-r: #1a1a20;
+  --border: #2a2a35; --text: #e8e8f0; --text-dim: #6b6b80;
+  --text-muted: #3d3d50; --accent: #f59e0b; --error: #ef4444;
+  --success: #4ade80; --mono: 'JetBrains Mono', monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:12px;overflow:hidden;}
+button{background:none;border:none;cursor:pointer;color:inherit;font-family:inherit;font-size:inherit;}
+input,select{font-family:inherit;font-size:inherit;}
+
+#app{display:flex;flex-direction:column;height:100vh;}
+
+/* Header */
+#header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.app-logo{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:500;}
+.app-subtitle{font-size:11px;color:var(--text-muted);}
+
+/* Body */
+#body{display:flex;flex:1;overflow:hidden;}
+
+/* Left panel - controls */
+#controls{width:240px;min-width:240px;background:var(--surface);border-right:1px solid var(--border);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.section-title{font-size:10px;font-weight:600;letter-spacing:0.08em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;}
+label{font-size:11px;color:var(--text-dim);}
+select,input[type=number],input[type=text]{
+  background:var(--surface-r);border:1px solid var(--border);
+  color:var(--text);padding:5px 8px;font-size:11px;
+  outline:none;width:100%;border-radius:2px;
+}
+select:focus,input:focus{border-color:var(--accent);}
+input[type=range]{width:100%;accent-color:var(--accent);}
+.range-row{display:flex;align-items:center;gap:8px;}
+.range-val{font-family:var(--mono);font-size:11px;color:var(--text-dim);min-width:30px;text-align:right;}
+.checkbox-row{display:flex;align-items:center;gap:8px;}
+input[type=checkbox]{accent-color:var(--accent);}
+
+.btn{
+  display:block;width:100%;padding:8px;text-align:center;
+  background:var(--accent);color:#000;font-weight:600;font-size:12px;
+  border-radius:2px;cursor:pointer;
+}
+.btn:hover{background:#f59e0bdd;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.btn.secondary{background:var(--surface-r);color:var(--text);border:1px solid var(--border);}
+.btn.secondary:hover{border-color:var(--accent);color:var(--accent);}
+.btn.danger{background:transparent;color:var(--error);border:1px solid var(--error)22;}
+.btn.danger:hover{background:var(--error)11;}
+
+/* Drop zone */
+#drop-zone{
+  border:1.5px dashed var(--border);padding:20px 12px;text-align:center;
+  cursor:pointer;transition:border-color 0.15s;border-radius:2px;
+}
+#drop-zone:hover,#drop-zone.over{border-color:var(--accent);}
+.dz-icon{color:var(--text-muted);margin-bottom:6px;}
+.dz-title{font-size:11px;color:var(--text-dim);}
+.dz-hint{font-size:10px;color:var(--text-muted);margin-top:3px;font-family:var(--mono);}
+
+/* Main - preview grid */
+#main{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+#preview-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.pb-label{font-size:11px;color:var(--text-dim);}
+.pb-count{font-family:var(--mono);font-size:11px;color:var(--accent);}
+.pb-right{margin-left:auto;display:flex;gap:6px;}
+.icon-btn{color:var(--text-muted);padding:3px;border-radius:2px;}
+.icon-btn:hover{color:var(--text);background:var(--surface-r);}
+
+#grid{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;align-content:start;}
+#grid::-webkit-scrollbar{width:4px;}
+#grid::-webkit-scrollbar-thumb{background:var(--border);}
+
+.img-card{background:var(--surface);border:1px solid var(--border);padding:8px;cursor:pointer;border-radius:3px;position:relative;}
+.img-card:hover{border-color:var(--accent)44;}
+.img-card.selected{border-color:var(--accent);}
+.img-thumb{width:100%;aspect-ratio:1;object-fit:cover;background:var(--surface-r);border-radius:2px;display:block;}
+.img-name{font-family:var(--mono);font-size:9px;color:var(--text-muted);margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.img-size{font-family:var(--mono);font-size:9px;color:var(--text-muted);}
+.img-status{position:absolute;top:5px;right:5px;width:8px;height:8px;border-radius:50%;}
+.img-status.ok{background:var(--success);}
+.img-status.processing{background:var(--accent);animation:pulse 1s infinite;}
+.img-status.error{background:var(--error);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+#empty-grid{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:var(--text-muted);}
+.eg-title{font-size:13px;color:var(--text-dim);}
+.eg-hint{font-size:11px;font-family:var(--mono);}
+
+/* Progress */
+#progress-bar{height:3px;background:var(--border);flex-shrink:0;}
+#progress-fill{height:3px;background:var(--accent);width:0;transition:width 0.2s;}
+
+/* Log */
+#log-panel{height:80px;border-top:1px solid var(--border);background:var(--bg);overflow-y:auto;padding:6px 14px;flex-shrink:0;}
+#log-panel::-webkit-scrollbar{width:3px;}
+.log-line{font-family:var(--mono);font-size:10px;color:var(--text-dim);line-height:1.6;}
+.log-line.ok{color:var(--success);}
+.log-line.err{color:var(--error);}
+.log-line.info{color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <span class="app-logo">ImageForge</span>
+    <span class="app-subtitle">Batch image processor · client-side · zero upload</span>
+  </div>
+  <div id="body">
+
+    <!-- Controls -->
+    <div id="controls">
+      <!-- Drop zone -->
+      <div id="drop-zone">
+        <div class="dz-icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="3" y="3" width="22" height="22" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M9 14L14 9L19 14M14 9V21" stroke="currentColor" stroke-width="1.2"/></svg>
+        </div>
+        <div class="dz-title">Drop images or ZIP</div>
+        <div class="dz-hint">jpg, png, webp, gif</div>
+        <input type="file" id="file-input" multiple accept="image/*,.zip" style="display:none"/>
+      </div>
+
+      <!-- Output format -->
+      <div>
+        <div class="section-title">Output</div>
+        <div class="field">
+          <label>Format</label>
+          <select id="fmt">
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/png">PNG</option>
+            <option value="image/webp" selected>WebP</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Quality</label>
+          <div class="range-row">
+            <input type="range" id="quality" min="1" max="100" value="88"/>
+            <span class="range-val" id="quality-val">88%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resize -->
+      <div>
+        <div class="section-title">Resize</div>
+        <div class="field">
+          <label>Mode</label>
+          <select id="resize-mode">
+            <option value="none">No resize</option>
+            <option value="fitWidth">Fit width</option>
+            <option value="fitHeight">Fit height</option>
+            <option value="box">Fit in box</option>
+            <option value="exact">Exact</option>
+          </select>
+        </div>
+        <div class="field" id="dim-w" style="display:none">
+          <label>Width (px)</label>
+          <input type="number" id="resize-w" value="1280" min="1"/>
+        </div>
+        <div class="field" id="dim-h" style="display:none">
+          <label>Height (px)</label>
+          <input type="number" id="resize-h" value="720" min="1"/>
+        </div>
+      </div>
+
+      <!-- Watermark -->
+      <div>
+        <div class="section-title">Watermark</div>
+        <div class="checkbox-row" style="margin-bottom:8px">
+          <input type="checkbox" id="wm-on"/>
+          <label for="wm-on">Enable watermark</label>
+        </div>
+        <div id="wm-opts" style="display:none">
+          <div class="field">
+            <label>Text</label>
+            <input type="text" id="wm-text" value="© SubstrateOS"/>
+          </div>
+          <div class="field">
+            <label>Position</label>
+            <select id="wm-pos">
+              <option value="br">Bottom right</option>
+              <option value="bl">Bottom left</option>
+              <option value="tr">Top right</option>
+              <option value="tl">Top left</option>
+              <option value="c">Center</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:auto">
+        <button class="btn" id="btn-process" disabled>Process All</button>
+        <button class="btn secondary" id="btn-download" disabled>Download ZIP</button>
+        <button class="btn danger" id="btn-clear">Clear</button>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div id="main">
+      <div id="preview-bar">
+        <span class="pb-label">Images</span>
+        <span class="pb-count" id="img-count">0</span>
+        <div class="pb-right">
+          <button class="icon-btn" id="btn-select-all" title="Select all">☑</button>
+        </div>
+      </div>
+
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+
+      <div id="empty-grid">
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none"><rect x="5" y="8" width="34" height="28" stroke="currentColor" stroke-width="1.2" fill="none"/><circle cx="14" cy="18" r="4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M5 30L14 20L22 28L30 20L39 30" stroke="currentColor" stroke-width="1.2"/></svg>
+        <div class="eg-title">No images loaded</div>
+        <div class="eg-hint">Drop files or click the drop zone</div>
+      </div>
+
+      <div id="grid" style="display:none"></div>
+
+      <div id="log-panel"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const imageFiles = [];   // { name, file, objectUrl, processed? }
+const results    = [];   // { name, blob }
+const canvas = document.createElement('canvas');
+const ctx2d  = canvas.getContext('2d');
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+const fmtSel    = document.getElementById('fmt');
+const qualRange = document.getElementById('quality');
+const qualVal   = document.getElementById('quality-val');
+const resMode   = document.getElementById('resize-mode');
+const dimW      = document.getElementById('dim-w');
+const dimH      = document.getElementById('dim-h');
+const wmOn      = document.getElementById('wm-on');
+const wmOpts    = document.getElementById('wm-opts');
+const btnProcess   = document.getElementById('btn-process');
+const btnDownload  = document.getElementById('btn-download');
+const btnClear     = document.getElementById('btn-clear');
+const grid      = document.getElementById('grid');
+const emptyGrid = document.getElementById('empty-grid');
+const imgCount  = document.getElementById('img-count');
+const progFill  = document.getElementById('progress-fill');
+
+qualRange.addEventListener('input', () => qualVal.textContent = qualRange.value + '%');
+wmOn.addEventListener('change', () => wmOpts.style.display = wmOn.checked ? 'block' : 'none');
+resMode.addEventListener('change', () => {
+  const m = resMode.value;
+  dimW.style.display = (m === 'fitWidth' || m === 'box' || m === 'exact') ? 'block' : 'none';
+  dimH.style.display = (m === 'fitHeight' || m === 'box' || m === 'exact') ? 'block' : 'none';
+});
+
+// ── Drop zone ─────────────────────────────────────────────────────────────────
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', async e => { e.preventDefault(); dz.classList.remove('over'); await handleFiles(e.dataTransfer.files); });
+fi.addEventListener('change', async () => { await handleFiles(fi.files); fi.value = ''; });
+
+document.body.addEventListener('dragover', e => e.preventDefault());
+document.body.addEventListener('drop', async e => { e.preventDefault(); await handleFiles(e.dataTransfer.files); });
+
+async function handleFiles(fileList) {
+  for (const f of fileList) {
+    if (f.name.endsWith('.zip')) await loadZip(f);
+    else if (f.type.startsWith('image/')) addImage(f.name, f);
+  }
+  updateUI();
+}
+
+async function loadZip(zipFile) {
+  log(`Loading ${zipFile.name}...`, 'info');
+  try {
+    const { ZipFS } = await import('../../bork/src/vfs/ZipFS.js');
+    const buf = await zipFile.arrayBuffer();
+    const zfs = new ZipFS();
+    await zfs.load(buf);
+    // Extract images from zip
+    async function walk(inodeOrRoot) {
+      const entries = await zfs.readdir(inodeOrRoot === 'root' ? zfs.getRootInode() : inodeOrRoot);
+      for (const e of entries) {
+        if (e.type === 'dir') {
+          const children = await zfs.readdir(e.inode);
+          for (const c of children) {
+            if (c.type === 'file' && isImageName(c.name)) {
+              const bytes = await zfs.read(c.inode);
+              const blob = new Blob([bytes], { type: mimeFromName(c.name) });
+              const file = new File([blob], c.name, { type: blob.type });
+              addImage(c.name, file);
+            }
+          }
+        } else if (e.type === 'file' && isImageName(e.name)) {
+          const bytes = await zfs.read(e.inode);
+          const blob = new Blob([bytes], { type: mimeFromName(e.name) });
+          const file = new File([blob], e.name, { type: blob.type });
+          addImage(e.name, file);
+        }
+      }
+    }
+    await walk('root');
+    log(`Loaded ${zipFile.name}`, 'ok');
+  } catch(err) {
+    log(`ZIP error: ${err.message}`, 'err');
+    // Fallback: try reading with JSZip-like approach via raw bytes
+  }
+  updateUI();
+}
+
+function isImageName(name) {
+  return /\.(jpe?g|png|webp|gif|bmp)$/i.test(name);
+}
+
+function mimeFromName(name) {
+  if (/\.jpe?g$/i.test(name)) return 'image/jpeg';
+  if (/\.png$/i.test(name)) return 'image/png';
+  if (/\.webp$/i.test(name)) return 'image/webp';
+  if (/\.gif$/i.test(name)) return 'image/gif';
+  return 'image/jpeg';
+}
+
+function addImage(name, file) {
+  if (imageFiles.find(i => i.name === name)) return;
+  const url = URL.createObjectURL(file);
+  imageFiles.push({ name, file, url, status: 'idle' });
+}
+
+function updateUI() {
+  imgCount.textContent = imageFiles.length;
+  btnProcess.disabled  = imageFiles.length === 0;
+  emptyGrid.style.display = imageFiles.length ? 'none' : 'flex';
+  grid.style.display      = imageFiles.length ? 'grid' : 'none';
+  renderGrid();
+}
+
+function renderGrid() {
+  grid.innerHTML = '';
+  for (const img of imageFiles) {
+    const card = document.createElement('div');
+    card.className = 'img-card';
+    card.innerHTML =
+      `<img class="img-thumb" src="${img.url}" loading="lazy"/>` +
+      `<div class="img-name" title="${img.name}">${img.name}</div>` +
+      `<div class="img-size">${img.file ? fmtSize(img.file.size) : ''}</div>` +
+      (img.status !== 'idle' ? `<div class="img-status ${img.status}"></div>` : '');
+    grid.appendChild(card);
+  }
+}
+
+// ── Processing ────────────────────────────────────────────────────────────────
+btnProcess.addEventListener('click', processAll);
+btnClear.addEventListener('click', clearAll);
+document.getElementById('btn-select-all').addEventListener('click', () => {});
+
+async function processAll() {
+  if (!imageFiles.length) return;
+  btnProcess.disabled = true;
+  results.length = 0;
+  const fmt = fmtSel.value;
+  const quality = parseInt(qualRange.value) / 100;
+  const mode = resMode.value;
+  const targetW = parseInt(document.getElementById('resize-w').value) || 1280;
+  const targetH = parseInt(document.getElementById('resize-h').value) || 720;
+  const useWatermark = wmOn.checked;
+  const wmText = document.getElementById('wm-text').value;
+  const wmPos  = document.getElementById('wm-pos').value;
+
+  log(`Processing ${imageFiles.length} images...`, 'info');
+  progFill.style.width = '0';
+
+  for (let i = 0; i < imageFiles.length; i++) {
+    const img = imageFiles[i];
+    img.status = 'processing';
+    renderGrid();
+    try {
+      const blob = await processImage(img.file, { fmt, quality, mode, targetW, targetH, useWatermark, wmText, wmPos });
+      const ext = fmt.split('/')[1].replace('jpeg','jpg');
+      const outName = img.name.replace(/\.[^.]+$/, '') + '.' + ext;
+      results.push({ name: outName, blob });
+      img.status = 'ok';
+      log(`✓ ${img.name} → ${fmtSize(blob.size)}`, 'ok');
+    } catch(e) {
+      img.status = 'error';
+      log(`✗ ${img.name}: ${e.message}`, 'err');
+    }
+    progFill.style.width = ((i+1)/imageFiles.length * 100) + '%';
+    renderGrid();
+    await new Promise(r => setTimeout(r, 0)); // yield to event loop
+  }
+
+  btnProcess.disabled  = false;
+  btnDownload.disabled = results.length === 0;
+  log(`Done. ${results.length}/${imageFiles.length} processed.`, 'info');
+}
+
+async function processImage(file, { fmt, quality, mode, targetW, targetH, useWatermark, wmText, wmPos }) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      // Resize
+      if (mode !== 'none') {
+        const ar = width / height;
+        if (mode === 'fitWidth')  { width = targetW; height = Math.round(targetW / ar); }
+        else if (mode === 'fitHeight') { height = targetH; width = Math.round(targetH * ar); }
+        else if (mode === 'box') {
+          if (width > targetW) { width = targetW; height = Math.round(targetW / ar); }
+          if (height > targetH) { width = Math.round(targetH * ar); height = targetH; }
+        }
+        else if (mode === 'exact') { width = targetW; height = targetH; }
+      }
+      canvas.width = width; canvas.height = height;
+      ctx2d.clearRect(0, 0, width, height);
+      ctx2d.drawImage(img, 0, 0, width, height);
+      // Watermark
+      if (useWatermark && wmText) {
+        const fontSize = Math.max(14, Math.round(width * 0.025));
+        ctx2d.font = `${fontSize}px sans-serif`;
+        ctx2d.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx2d.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx2d.shadowBlur = 4;
+        const tw = ctx2d.measureText(wmText).width;
+        const pad = fontSize * 0.5;
+        let x, y;
+        if (wmPos === 'br') { x = width - tw - pad; y = height - pad; }
+        else if (wmPos === 'bl') { x = pad; y = height - pad; }
+        else if (wmPos === 'tr') { x = width - tw - pad; y = fontSize + pad; }
+        else if (wmPos === 'tl') { x = pad; y = fontSize + pad; }
+        else { x = (width - tw) / 2; y = height / 2; }
+        ctx2d.fillText(wmText, x, y);
+        ctx2d.shadowBlur = 0;
+      }
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('canvas toBlob failed')), fmt, quality);
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ── Download ──────────────────────────────────────────────────────────────────
+btnDownload.addEventListener('click', downloadZip);
+
+async function downloadZip() {
+  if (!results.length) return;
+  log('Building output ZIP...', 'info');
+  const zipBytes = buildZip(results);
+  const blob = new Blob([zipBytes], { type: 'application/zip' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'imageforge-output.zip'; a.click();
+  URL.revokeObjectURL(url);
+  log(`Downloaded imageforge-output.zip (${fmtSize(blob.size)})`, 'ok');
+}
+
+function buildZip(files) {
+  // Build a STORED (no compression) ZIP — no deps
+  const enc = new TextEncoder();
+  const localHeaders = [];
+  const centralDirs  = [];
+  let offset = 0;
+
+  for (const { name, blob: _blob } of files) {
+    // We need bytes — blobs were created during processing, get arrayBuffer
+    // For synchronous build we store the data we already have
+    const nameBytes = enc.encode(name);
+    // Local file header
+    const lh = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true); // signature
+    lv.setUint16(4, 20, true);   // version
+    lv.setUint16(6, 0, true);    // flags
+    lv.setUint16(8, 0, true);    // compression STORED
+    lv.setUint32(14, 0, true);   // CRC (0 for now)
+    lv.setUint32(18, 0, true);   // compressed size (0 for now — we'll patch)
+    lv.setUint32(22, 0, true);   // uncompressed size
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);
+    lh.set(nameBytes, 30);
+    localHeaders.push({ lh, nameBytes, fileOffset: offset });
+    offset += lh.length; // data follows
+  }
+
+  // We need to actually serialize blobs — use a Promise-based approach isn't possible here
+  // so we build a minimal zip from the canvas output we already have as Uint8Arrays
+  // results were created as Blobs; we need a synchronous path
+  // Solution: caller must pass Uint8Array data; for now return placeholder
+  // In practice, by the time downloadZip is called, results are Blobs.
+  // We'll use a simple trick — read them with FileReaderSync-style but async.
+  // Since this IS async (called from event), we can use await in the caller.
+  // This function needs to be reworked:
+  return new Uint8Array(0); // placeholder — see below
+}
+
+// Proper async zip builder
+async function buildZipAsync(files) {
+  const enc = new TextEncoder();
+  const entries = [];
+  for (const { name, blob } of files) {
+    const data = new Uint8Array(await blob.arrayBuffer());
+    entries.push({ name, data });
+  }
+
+  const localHeadersData = [];
+  const centralDirs      = [];
+  let offset = 0;
+
+  for (const { name, data } of entries) {
+    const nameBytes = enc.encode(name);
+    const crc = crc32(data);
+    const lh  = new Uint8Array(30 + nameBytes.length);
+    const dv  = new DataView(lh.buffer);
+    dv.setUint32(0,  0x04034b50, true);
+    dv.setUint16(4,  20, true);
+    dv.setUint16(6,  0, true);
+    dv.setUint16(8,  0, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, data.length, true);
+    dv.setUint32(22, data.length, true);
+    dv.setUint16(26, nameBytes.length, true);
+    dv.setUint16(28, 0, true);
+    lh.set(nameBytes, 30);
+
+    const cd  = new Uint8Array(46 + nameBytes.length);
+    const cdv = new DataView(cd.buffer);
+    cdv.setUint32(0,  0x02014b50, true);
+    cdv.setUint16(4,  20, true);
+    cdv.setUint16(6,  20, true);
+    cdv.setUint16(8,  0, true);
+    cdv.setUint16(10, 0, true);
+    cdv.setUint16(12, 0, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, data.length, true);
+    cdv.setUint32(24, data.length, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint16(30, 0, true);
+    cdv.setUint16(32, 0, true);
+    cdv.setUint16(34, 0, true);
+    cdv.setUint16(36, 0, true);
+    cdv.setUint32(38, 0x81a40000, true);
+    cdv.setUint32(42, offset, true);
+    cd.set(nameBytes, 46);
+
+    localHeadersData.push(lh, data);
+    centralDirs.push(cd);
+    offset += lh.length + data.length;
+  }
+
+  const cdOffset = offset;
+  const cdSize   = centralDirs.reduce((s, c) => s + c.length, 0);
+  const eocd     = new Uint8Array(22);
+  const edv      = new DataView(eocd.buffer);
+  edv.setUint32(0,  0x06054b50, true);
+  edv.setUint16(4,  0, true);
+  edv.setUint16(6,  0, true);
+  edv.setUint16(8,  entries.length, true);
+  edv.setUint16(10, entries.length, true);
+  edv.setUint32(12, cdSize, true);
+  edv.setUint32(16, cdOffset, true);
+  edv.setUint16(20, 0, true);
+
+  const parts = [...localHeadersData, ...centralDirs, eocd];
+  const total = parts.reduce((s, p) => s + p.length, 0);
+  const out   = new Uint8Array(total);
+  let pos = 0;
+  for (const p of parts) { out.set(p, pos); pos += p.length; }
+  return out;
+}
+
+function crc32(data) {
+  const table = crc32.table || (crc32.table = (() => {
+    const t = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[i] = c;
+    }
+    return t;
+  })());
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < data.length; i++) crc = (crc >>> 8) ^ table[(crc ^ data[i]) & 0xFF];
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Override downloadZip to use async builder
+async function downloadZip() {
+  if (!results.length) return;
+  log('Building output ZIP...', 'info');
+  const zipBytes = await buildZipAsync(results);
+  const blob = new Blob([zipBytes], { type: 'application/zip' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'imageforge-output.zip'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  log(`Downloaded imageforge-output.zip (${fmtSize(blob.size)})`, 'ok');
+}
+
+function clearAll() {
+  for (const img of imageFiles) URL.revokeObjectURL(img.url);
+  imageFiles.length = 0;
+  results.length    = 0;
+  progFill.style.width = '0';
+  btnDownload.disabled = true;
+  updateUI();
+  log('Cleared.', 'info');
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────────
+function log(msg, type = '') {
+  const el = document.getElementById('log-panel');
+  const line = document.createElement('div');
+  line.className = 'log-line ' + type;
+  line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function fmtSize(b) {
+  if (b < 1024) return b + 'B';
+  if (b < 1048576) return (b/1024).toFixed(0) + 'KB';
+  return (b/1048576).toFixed(1) + 'MB';
+}
+
+log('ImageForge ready. Drop images or a ZIP to begin.', 'info');
+</script>
+</body>
+</html>

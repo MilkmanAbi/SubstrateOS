@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NetFetch</title>
+<style>
+:root{--bg:#0d0d0f;--surface:#111115;--s2:#1a1a20;--s3:#22222a;--border:#2a2a35;--bd2:#1e1e28;--text:#e8e8f0;--dim:#6b6b80;--muted:#3d3d50;--accent:#f59e0b;--err:#ef4444;--ok:#4ade80;--info:#60a5fa;--warn:#facc15;--mono:'JetBrains Mono',monospace;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:12px;overflow:hidden;}
+button{background:none;border:none;cursor:pointer;color:inherit;font-family:inherit;font-size:inherit;}
+input,select{font-family:inherit;font-size:inherit;}
+#app{display:flex;flex-direction:column;height:100vh;}
+
+/* toolbar */
+#toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:7px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.logo{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:700;margin-right:2px;}
+.method-sel{background:var(--s2);border:1px solid var(--border);color:var(--text);padding:3px 6px;outline:none;}
+.method-sel:focus{border-color:var(--accent);}
+#url-input{flex:1;background:var(--s2);border:1px solid var(--border);color:var(--text);padding:4px 9px;outline:none;font-family:var(--mono);font-size:11px;}
+#url-input:focus{border-color:var(--accent);}
+#url-input::placeholder{color:var(--muted);}
+.tool-btn{padding:3px 12px;font-family:var(--mono);font-size:10px;border:1px solid var(--border);color:var(--dim);}
+.tool-btn:hover{border-color:var(--accent);color:var(--accent);}
+.tool-btn.primary{background:var(--accent);color:#000;border-color:var(--accent);}
+.tool-btn.primary:hover{background:#e59000;}
+.tool-btn.danger{border-color:var(--err)44;color:var(--err);}
+.tool-btn.danger:hover{background:var(--err)22;}
+.tsep{width:1px;height:16px;background:var(--border);}
+
+/* body split */
+#body{flex:1;display:flex;overflow:hidden;}
+
+/* left: history */
+#history-pane{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.pane-hdr{height:26px;padding:0 9px;display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--bd2);flex-shrink:0;}
+.pane-hdr-title{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);flex:1;}
+.pane-hdr-btn{color:var(--muted);padding:2px;}
+.pane-hdr-btn:hover{color:var(--err);}
+#hist-list{flex:1;overflow-y:auto;}
+#hist-list::-webkit-scrollbar{width:3px;}
+#hist-list::-webkit-scrollbar-thumb{background:var(--border);}
+.hist-row{display:flex;align-items:center;gap:6px;padding:5px 9px;cursor:pointer;border-bottom:1px solid var(--bd2);}
+.hist-row:hover{background:var(--s2);}
+.hist-row.active{background:var(--s2);border-left:2px solid var(--accent);}
+.hist-method{font-family:var(--mono);font-size:9px;min-width:32px;font-weight:600;}
+.hist-method.GET{color:var(--ok);}
+.hist-method.POST{color:var(--info);}
+.hist-method.PUT{color:var(--warn);}
+.hist-method.DELETE{color:var(--err);}
+.hist-url{font-family:var(--mono);font-size:9px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.hist-status{font-family:var(--mono);font-size:9px;min-width:28px;text-align:right;}
+.hist-status.ok{color:var(--ok);}
+.hist-status.err{color:var(--err);}
+
+/* right: main */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+/* request config */
+#req-tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:stretch;flex-shrink:0;}
+.req-tab{padding:5px 12px;font-family:var(--mono);font-size:10px;color:var(--dim);cursor:pointer;border-right:1px solid var(--border);position:relative;}
+.req-tab:hover{color:var(--text);}
+.req-tab.active{color:var(--text);background:var(--bg);}
+.req-tab.active::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:var(--accent);}
+.req-tab-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block;margin-left:4px;opacity:0;}
+.req-tab.has-data .req-tab-dot{opacity:1;}
+
+#req-panel{background:var(--s2);border-bottom:1px solid var(--border);flex-shrink:0;max-height:180px;overflow:auto;display:none;}
+#req-panel.show{display:block;}
+#req-panel::-webkit-scrollbar{width:3px;}
+#req-panel::-webkit-scrollbar-thumb{background:var(--border);}
+.kv-row{display:flex;gap:4px;padding:4px 8px;border-bottom:1px solid var(--bd2);}
+.kv-input{flex:1;background:var(--s3);border:1px solid var(--border);color:var(--text);padding:3px 7px;font-family:var(--mono);font-size:10px;outline:none;}
+.kv-input:focus{border-color:var(--accent);}
+.kv-del{color:var(--muted);padding:2px 4px;}
+.kv-del:hover{color:var(--err);}
+.kv-add{display:block;padding:5px 8px;font-family:var(--mono);font-size:10px;color:var(--muted);text-align:left;width:100%;}
+.kv-add:hover{color:var(--accent);}
+#body-input{width:100%;background:var(--s2);border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:11px;padding:8px 10px;resize:none;line-height:1.6;min-height:100px;}
+
+/* response */
+#resp-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#resp-toolbar{height:30px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0;}
+.resp-status{font-family:var(--mono);font-size:11px;font-weight:600;}
+.resp-status.ok{color:var(--ok);}
+.resp-status.redirect{color:var(--warn);}
+.resp-status.err{color:var(--err);}
+.resp-meta{font-family:var(--mono);font-size:9px;color:var(--dim);}
+.resp-save{margin-left:auto;}
+#resp-tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;flex-shrink:0;}
+.resp-tab{padding:4px 10px;font-family:var(--mono);font-size:10px;color:var(--dim);cursor:pointer;border-right:1px solid var(--border);}
+.resp-tab:hover{color:var(--text);}
+.resp-tab.active{color:var(--text);background:var(--bg);}
+#resp-body{flex:1;overflow:auto;padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--text);line-height:1.65;white-space:pre-wrap;word-break:break-all;}
+#resp-body::-webkit-scrollbar{width:4px;}
+#resp-body::-webkit-scrollbar-thumb{background:var(--border);}
+#resp-headers-view{flex:1;overflow:auto;padding:8px 12px;display:none;}
+.hdr-row{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--bd2);}
+.hdr-name{font-family:var(--mono);font-size:10px;color:var(--accent);min-width:180px;}
+.hdr-val{font-family:var(--mono);font-size:10px;color:var(--dim);}
+#empty-state{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;}
+.empty-icon{color:var(--muted);}
+.empty-title{color:var(--dim);font-size:12px;}
+.empty-sub{font-family:var(--mono);font-size:10px;color:var(--muted);}
+
+/* save dialog */
+#save-dialog{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;}
+#save-dialog.show{display:flex;}
+.save-card{background:var(--surface);border:1px solid var(--border);padding:20px;min-width:320px;}
+.save-title{font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:12px;}
+.save-input{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);padding:5px 9px;font-family:var(--mono);font-size:11px;outline:none;margin-bottom:10px;}
+.save-input:focus{border-color:var(--accent);}
+.save-btns{display:flex;gap:6px;justify-content:flex-end;}
+
+/* progress bar */
+#progress{height:2px;background:var(--accent);width:0;transition:width .15s;flex-shrink:0;}
+#progress.done{background:var(--ok);}
+#progress.err{background:var(--err);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <span class="logo">NetFetch</span>
+    <select class="method-sel" id="method-sel">
+      <option>GET</option><option>POST</option><option>PUT</option>
+      <option>PATCH</option><option>DELETE</option><option>HEAD</option>
+    </select>
+    <input id="url-input" type="text" placeholder="https://..." spellcheck="false"/>
+    <div class="tsep"></div>
+    <button class="tool-btn primary" id="btn-send">Send</button>
+    <button class="tool-btn danger" id="btn-cancel" style="display:none">Cancel</button>
+  </div>
+  <div id="progress"></div>
+
+  <div id="body">
+    <div id="history-pane">
+      <div class="pane-hdr">
+        <span class="pane-hdr-title">History</span>
+        <button class="pane-hdr-btn" id="btn-clear-hist" title="Clear history">✕</button>
+      </div>
+      <div id="hist-list"></div>
+    </div>
+
+    <div id="main">
+      <div id="req-tabs">
+        <div class="req-tab active" data-tab="headers">Headers <span class="req-tab-dot"></span></div>
+        <div class="req-tab" data-tab="body">Body <span class="req-tab-dot"></span></div>
+        <div class="req-tab" data-tab="params">Params <span class="req-tab-dot"></span></div>
+      </div>
+      <div id="req-panel">
+        <div id="tab-headers">
+          <div id="headers-list"></div>
+          <button class="kv-add" id="add-header">+ Add Header</button>
+        </div>
+        <div id="tab-body" style="display:none">
+          <textarea id="body-input" rows="5" placeholder='{"key": "value"}'></textarea>
+        </div>
+        <div id="tab-params" style="display:none">
+          <div id="params-list"></div>
+          <button class="kv-add" id="add-param">+ Add Param</button>
+        </div>
+      </div>
+
+      <div id="resp-area">
+        <div id="empty-state">
+          <svg class="empty-icon" width="36" height="36" viewBox="0 0 36 36" fill="none">
+            <path d="M5 18H31M18 5C12 11 12 25 18 31M18 5C24 11 24 25 18 31M5 18C11 12 25 12 31 18M5 18C11 24 25 24 31 18" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+          <div class="empty-title">No request yet</div>
+          <div class="empty-sub">Enter a URL and hit Send</div>
+        </div>
+
+        <div id="resp-content" style="display:none;flex:1;display:none;flex-direction:column;overflow:hidden;">
+          <div id="resp-toolbar">
+            <span class="resp-status" id="resp-status"></span>
+            <span class="resp-meta" id="resp-meta"></span>
+            <button class="tool-btn resp-save" id="btn-save-resp">Save to VFS</button>
+          </div>
+          <div id="resp-tabs">
+            <div class="resp-tab active" data-rtab="body">Body</div>
+            <div class="resp-tab" data-rtab="headers">Headers</div>
+          </div>
+          <div id="resp-body"></div>
+          <div id="resp-headers-view"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="save-dialog">
+  <div class="save-card">
+    <div class="save-title">Save to VFS</div>
+    <input class="save-input" id="save-path-input" type="text" value="/home/user/response.json"/>
+    <div class="save-btns">
+      <button class="tool-btn" id="btn-save-cancel">Cancel</button>
+      <button class="tool-btn primary" id="btn-save-confirm">Save</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createBORK } from '../../bork/src/bork.js';
+import CFG from '../../substrate.config.js';
+
+let bork = null;
+try { bork = await createBORK({ poolMB: 32, profile: 'desktop', idbName: CFG.fs.idbName }); bork.mm.dmu?.stop(); } catch {}
+
+const S = {
+  history: [],
+  currentResp: null,
+  abortCtl: null,
+  reqTab: 'headers',
+  respTab: 'body',
+};
+
+// ── Request tab switching ──────────────────────────────────────────────────────
+let reqPanelOpen = false;
+document.querySelectorAll('.req-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const name = tab.dataset.tab;
+    if (S.reqTab === name && reqPanelOpen) { reqPanelOpen = false; document.getElementById('req-panel').classList.remove('show'); return; }
+    S.reqTab = name;
+    reqPanelOpen = true;
+    document.getElementById('req-panel').classList.add('show');
+    document.querySelectorAll('.req-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.getElementById('tab-headers').style.display = name === 'headers' ? '' : 'none';
+    document.getElementById('tab-body').style.display    = name === 'body'    ? '' : 'none';
+    document.getElementById('tab-params').style.display  = name === 'params'  ? '' : 'none';
+  });
+});
+
+// ── Headers ────────────────────────────────────────────────────────────────────
+function addKVRow(containerId, kPlaceholder, vPlaceholder) {
+  const row = document.createElement('div'); row.className = 'kv-row';
+  row.innerHTML = `<input class="kv-input" placeholder="${kPlaceholder}" type="text"/>` +
+                  `<input class="kv-input" placeholder="${vPlaceholder}" type="text"/>` +
+                  `<button class="kv-del" title="Remove">✕</button>`;
+  row.querySelector('.kv-del').addEventListener('click', () => row.remove());
+  document.getElementById(containerId).appendChild(row);
+}
+
+document.getElementById('add-header').addEventListener('click', () => addKVRow('headers-list', 'Header-Name', 'value'));
+document.getElementById('add-param').addEventListener('click',  () => addKVRow('params-list',  'param', 'value'));
+
+function getKVPairs(containerId) {
+  const pairs = {};
+  document.querySelectorAll(`#${containerId} .kv-row`).forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const k = inputs[0].value.trim(); const v = inputs[1].value.trim();
+    if (k) pairs[k] = v;
+  });
+  return pairs;
+}
+
+// ── Send request ───────────────────────────────────────────────────────────────
+document.getElementById('btn-send').addEventListener('click', sendRequest);
+document.getElementById('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendRequest(); });
+document.getElementById('btn-cancel').addEventListener('click', () => { S.abortCtl?.abort(); });
+
+async function sendRequest() {
+  let url = document.getElementById('url-input').value.trim();
+  if (!url) return;
+  const method  = document.getElementById('method-sel').value;
+  const headers = getKVPairs('headers-list');
+  const params  = getKVPairs('params-list');
+  const bodyText = document.getElementById('body-input').value.trim();
+
+  // Append query params
+  if (Object.keys(params).length) {
+    const sep = url.includes('?') ? '&' : '?';
+    url += sep + Object.entries(params).map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  }
+
+  const bar  = document.getElementById('progress');
+  const send = document.getElementById('btn-send');
+  const canc = document.getElementById('btn-cancel');
+  bar.className = ''; bar.style.width = '40%';
+  send.style.display = 'none'; canc.style.display = '';
+
+  const start = Date.now();
+  let resp = null;
+  try {
+    if (bork) {
+      resp = await bork.sys.fetch(url, { method, headers, body: bodyText || undefined });
+    } else {
+      // fallback: direct fetch
+      const r = await fetch(url, { method, headers: new Headers(headers), body: bodyText || undefined });
+      const ct = r.headers.get('content-type') ?? '';
+      const isText = ct.includes('text') || ct.includes('json') || ct.includes('xml');
+      const bodyData = isText ? await r.text() : await r.arrayBuffer();
+      resp = {
+        ok: r.ok, status: r.status, statusText: r.statusText, contentType: ct, isText,
+        data: isText ? new TextEncoder().encode(bodyData) : new Uint8Array(bodyData),
+        text: isText ? bodyData : null,
+        size: isText ? bodyData.length : bodyData.byteLength,
+        headers: Object.fromEntries(r.headers.entries()),
+        url: r.url,
+      };
+    }
+
+    bar.style.width = '100%';
+    bar.className = resp.ok ? 'done' : 'err';
+    S.currentResp = resp;
+
+    const elapsed = Date.now() - start;
+    showResponse(resp, elapsed);
+    addHistory({ url, method, status: resp.status, ok: resp.ok, resp, elapsed });
+
+  } catch (e) {
+    bar.style.width = '100%'; bar.className = 'err';
+    document.getElementById('resp-body').textContent = 'Error: ' + e.message;
+    showRespContent(false);
+    document.getElementById('resp-status').textContent = 'Error';
+    document.getElementById('resp-status').className = 'resp-status err';
+    document.getElementById('resp-meta').textContent = e.message;
+    addHistory({ url, method, status: 0, ok: false, resp: null, elapsed: Date.now() - start });
+  } finally {
+    send.style.display = ''; canc.style.display = 'none';
+    setTimeout(() => { bar.style.width = '0'; bar.className = ''; }, 1200);
+  }
+}
+
+function showResponse(resp, elapsed) {
+  showRespContent(true);
+
+  const statusEl = document.getElementById('resp-status');
+  statusEl.textContent = `${resp.status} ${resp.statusText}`;
+  statusEl.className   = 'resp-status ' + (resp.status < 300 ? 'ok' : resp.status < 400 ? 'redirect' : 'err');
+
+  document.getElementById('resp-meta').textContent = `${fmtSize(resp.size)} · ${elapsed}ms`;
+
+  // Body
+  const bodyEl = document.getElementById('resp-body');
+  let bodyText = resp.text ?? new TextDecoder().decode(resp.data);
+
+  // Try to pretty-print JSON
+  if ((resp.contentType ?? '').includes('json')) {
+    try { bodyText = JSON.stringify(JSON.parse(bodyText), null, 2); }
+    catch {}
+  }
+  bodyEl.textContent = bodyText;
+  bodyEl.style.display = S.respTab === 'body' ? '' : 'none';
+
+  // Headers
+  const hdrEl = document.getElementById('resp-headers-view');
+  const hdrs  = resp.headers ?? {};
+  hdrEl.innerHTML = Object.entries(hdrs).map(([k, v]) =>
+    `<div class="hdr-row"><span class="hdr-name">${esc(k)}</span><span class="hdr-val">${esc(v)}</span></div>`
+  ).join('');
+  hdrEl.style.display = S.respTab === 'headers' ? '' : 'none';
+}
+
+function showRespContent(show) {
+  document.getElementById('empty-state').style.display  = show ? 'none' : '';
+  document.getElementById('resp-content').style.display = show ? 'flex' : 'none';
+}
+
+// ── Response tab switching ─────────────────────────────────────────────────────
+document.querySelectorAll('.resp-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    S.respTab = tab.dataset.rtab;
+    document.querySelectorAll('.resp-tab').forEach(t => t.classList.toggle('active', t.dataset.rtab === S.respTab));
+    document.getElementById('resp-body').style.display          = S.respTab === 'body'    ? '' : 'none';
+    document.getElementById('resp-headers-view').style.display  = S.respTab === 'headers' ? '' : 'none';
+  });
+});
+
+// ── Save to VFS ────────────────────────────────────────────────────────────────
+document.getElementById('btn-save-resp').addEventListener('click', () => {
+  if (!S.currentResp) return;
+  const url = document.getElementById('url-input').value;
+  const fname = url.split('/').pop().split('?')[0] || 'response';
+  document.getElementById('save-path-input').value = '/home/user/' + fname;
+  document.getElementById('save-dialog').classList.add('show');
+});
+document.getElementById('btn-save-cancel').addEventListener('click', () => document.getElementById('save-dialog').classList.remove('show'));
+document.getElementById('btn-save-confirm').addEventListener('click', async () => {
+  const path = document.getElementById('save-path-input').value.trim();
+  if (!path || !S.currentResp || !bork) return;
+  try {
+    await bork.sys.writeFile(path, S.currentResp.data);
+    document.getElementById('save-dialog').classList.remove('show');
+    document.getElementById('btn-save-resp').textContent = '✓ Saved';
+    setTimeout(() => document.getElementById('btn-save-resp').textContent = 'Save to VFS', 2000);
+  } catch (e) {
+    alert('Save failed: ' + e.message);
+  }
+});
+
+// ── History ────────────────────────────────────────────────────────────────────
+function addHistory(entry) {
+  S.history.unshift(entry);
+  if (S.history.length > 50) S.history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('hist-list');
+  list.innerHTML = '';
+  for (const [i, e] of S.history.entries()) {
+    const row = document.createElement('div');
+    row.className = 'hist-row' + (i === 0 ? ' active' : '');
+    const urlShort = e.url.replace(/^https?:\/\//, '');
+    const statusCls = e.ok ? 'ok' : 'err';
+    row.innerHTML = `<span class="hist-method ${e.method}">${e.method}</span><span class="hist-url">${esc(urlShort)}</span><span class="hist-status ${statusCls}">${e.status || '—'}</span>`;
+    row.addEventListener('click', () => {
+      document.getElementById('url-input').value  = e.url;
+      document.getElementById('method-sel').value = e.method;
+      if (e.resp) showResponse(e.resp, e.elapsed);
+      document.querySelectorAll('.hist-row').forEach((r, j) => r.classList.toggle('active', j === i));
+    });
+    list.appendChild(row);
+  }
+}
+
+document.getElementById('btn-clear-hist').addEventListener('click', () => { S.history = []; renderHistory(); });
+
+// ── Utils ──────────────────────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtSize(b) { if (b < 1024) return b+'B'; if (b < 1048576) return (b/1024).toFixed(0)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+
+// Pre-populate a demo header
+addKVRow('headers-list', 'Header-Name', 'value');
+document.querySelector('#headers-list .kv-input').value = 'Accept';
+document.querySelectorAll('#headers-list .kv-input')[1].value = 'application/json';
+</script>
+</body>
+</html>

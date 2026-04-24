@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Editor</title>
+<style>
+:root{--bg:#0d0d0f;--surface:#111115;--surface-r:#1a1a20;--border:#2a2a35;--text:#e8e8f0;--text-dim:#6b6b80;--text-muted:#3d3d50;--accent:#f59e0b;--error:#ef4444;--success:#4ade80;--mono:'JetBrains Mono',monospace;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:12px;overflow:hidden;}
+button{background:none;border:none;cursor:pointer;color:inherit;font-family:inherit;font-size:inherit;}
+#app{display:flex;flex-direction:column;height:100vh;}
+#toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.app-logo{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:600;margin-right:4px;}
+.tool-btn{padding:3px 10px;font-family:var(--mono);font-size:10px;color:var(--text-dim);border:1px solid var(--border);border-radius:2px;}
+.tool-btn:hover{color:var(--text);border-color:var(--accent)55;}
+.tool-btn.primary{background:var(--accent);color:#000;border-color:var(--accent);}
+.tool-btn.primary:hover{background:#e59000;}
+.tool-sep{width:1px;height:16px;background:var(--border);flex-shrink:0;}
+#file-path-input{
+  background:var(--surface-r);border:1px solid var(--border);
+  color:var(--text);padding:3px 8px;font-family:var(--mono);font-size:10px;
+  outline:none;width:240px;
+}
+#file-path-input:focus{border-color:var(--accent);}
+.status-msg{font-family:var(--mono);font-size:10px;margin-left:auto;}
+.status-msg.ok{color:var(--success);}
+.status-msg.err{color:var(--error);}
+
+#editor-area{flex:1;display:flex;overflow:hidden;}
+#line-nums{
+  background:var(--surface);border-right:1px solid var(--border);
+  padding:10px 8px;font-family:var(--mono);font-size:12px;line-height:1.65;
+  color:var(--text-muted);text-align:right;user-select:none;
+  overflow:hidden;min-width:44px;flex-shrink:0;
+}
+#editor{
+  flex:1;resize:none;background:var(--bg);border:none;outline:none;
+  font-family:var(--mono);font-size:12px;line-height:1.65;
+  color:var(--text);padding:10px 14px;
+  overflow-y:auto;white-space:pre;tab-size:2;
+}
+#editor::-webkit-scrollbar{width:4px;}
+#editor::-webkit-scrollbar-thumb{background:var(--border);}
+#statusbar{
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:3px 12px;display:flex;align-items:center;gap:12px;flex-shrink:0;
+}
+.sb-item{font-family:var(--mono);font-size:9px;color:var(--text-muted);}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <span class="app-logo">Editor</span>
+    <button class="tool-btn" id="btn-new">New</button>
+    <button class="tool-btn" id="btn-open">Open</button>
+    <div class="tool-sep"></div>
+    <input id="file-path-input" type="text" placeholder="/home/user/file.txt" value="/home/user/untitled.txt"/>
+    <div class="tool-sep"></div>
+    <button class="tool-btn primary" id="btn-save">Save</button>
+    <span class="status-msg" id="status-msg"></span>
+  </div>
+  <div id="editor-area">
+    <div id="line-nums" id="line-nums">1</div>
+    <textarea id="editor" spellcheck="false" placeholder="Start typing..."></textarea>
+  </div>
+  <div id="statusbar">
+    <span class="sb-item" id="sb-pos">Ln 1, Col 1</span>
+    <span class="sb-item" id="sb-chars">0 chars</span>
+    <span class="sb-item" id="sb-lines">1 lines</span>
+    <span class="sb-item" id="sb-type">Plain text</span>
+    <span class="sb-item" style="margin-left:auto" id="sb-modified"></span>
+  </div>
+</div>
+
+<script type="module">
+import { createBORK } from '../../bork/src/bork.js';
+
+let bork = null;
+let modified = false;
+const editor = document.getElementById('editor');
+const lineNums = document.getElementById('line-nums');
+const pathInput = document.getElementById('file-path-input');
+const statusMsg = document.getElementById('status-msg');
+
+// Init BORK
+try { bork = await createBORK({ poolMB: 32 }); } catch {}
+
+function updateLineNums() {
+  const lines = editor.value.split('\n').length;
+  lineNums.textContent = Array.from({length: lines}, (_, i) => i + 1).join('\n');
+}
+
+function updateStatus() {
+  const text = editor.value;
+  const lines = text.split('\n');
+  const pos = editor.selectionStart;
+  let ln = 1, col = 1;
+  let count = 0;
+  for (const line of lines) {
+    if (count + line.length + 1 > pos) { col = pos - count + 1; break; }
+    count += line.length + 1; ln++;
+  }
+  document.getElementById('sb-pos').textContent = `Ln ${ln}, Col ${col}`;
+  document.getElementById('sb-chars').textContent = `${text.length} chars`;
+  document.getElementById('sb-lines').textContent = `${lines.length} lines`;
+  const ext = pathInput.value.split('.').pop().toLowerCase();
+  const types = { js:'JavaScript', ts:'TypeScript', html:'HTML', css:'CSS', md:'Markdown', json:'JSON', py:'Python', dart:'Dart', sh:'Shell', txt:'Plain text', rs:'Rust', c:'C', cpp:'C++' };
+  document.getElementById('sb-type').textContent = types[ext] ?? 'Plain text';
+  document.getElementById('sb-modified').textContent = modified ? '● Modified' : '';
+  document.getElementById('sb-modified').style.color = modified ? 'var(--warn)' : '';
+  updateLineNums();
+}
+
+editor.addEventListener('input', () => { modified = true; updateStatus(); });
+editor.addEventListener('keydown', e => {
+  if (e.key === 'Tab') { e.preventDefault(); const s = editor.selectionStart; const end = editor.selectionEnd; editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(end); editor.selectionStart = editor.selectionEnd = s + 2; updateStatus(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') { e.preventDefault(); editor.select(); }
+});
+editor.addEventListener('click', updateStatus);
+editor.addEventListener('keyup', updateStatus);
+
+// Sync scroll between editor and line numbers
+editor.addEventListener('scroll', () => { lineNums.scrollTop = editor.scrollTop; });
+
+async function openFile() {
+  const path = pathInput.value.trim();
+  if (!path) return;
+  try {
+    if (!bork) throw new Error('BORK not available');
+    const text = await bork.sys.readTextFile(path);
+    editor.value = text;
+    modified = false;
+    setStatus(`Opened ${path}`, 'ok');
+    updateStatus();
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+async function saveFile() {
+  const path = pathInput.value.trim();
+  if (!path) { setStatus('Set a file path first', 'err'); return; }
+  try {
+    if (!bork) throw new Error('BORK not available');
+    await bork.sys.writeFile(path, editor.value);
+    modified = false;
+    setStatus(`Saved ${path}`, 'ok');
+    updateStatus();
+  } catch (e) {
+    setStatus('Save failed: ' + e.message, 'err');
+  }
+}
+
+function setStatus(msg, type = '') {
+  statusMsg.textContent = msg;
+  statusMsg.className = 'status-msg ' + type;
+  if (type) setTimeout(() => { statusMsg.textContent = ''; statusMsg.className = 'status-msg'; }, 3000);
+}
+
+document.getElementById('btn-save').addEventListener('click', saveFile);
+document.getElementById('btn-open').addEventListener('click', openFile);
+document.getElementById('btn-new').addEventListener('click', () => {
+  editor.value = '';
+  modified = false;
+  pathInput.value = '/home/user/untitled.txt';
+  updateStatus();
+});
+
+// Open file if path is in URL hash
+const hashPath = location.hash.slice(1);
+if (hashPath) { pathInput.value = decodeURIComponent(hashPath); openFile(); }
+
+// Default content
+editor.value = '# Welcome to Editor\n\n# Set a file path above and click Open to load a file,\n# or start typing and click Save to create a new file.\n\n# Files are stored in the SubstrateOS VFS (IndexedDB).\n# They persist across page reloads.\n';
+updateStatus();
+</script>
+</body>
+</html>

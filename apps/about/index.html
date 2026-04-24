@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>About SubstrateOS</title>
+<style>
+:root{--bg:#0d0d0f;--surface:#111115;--surface-r:#1a1a20;--border:#2a2a35;--text:#e8e8f0;--text-dim:#6b6b80;--text-muted:#3d3d50;--accent:#f59e0b;--success:#4ade80;--mono:'JetBrains Mono',monospace;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:12px;overflow:auto;}
+#app{padding:28px 36px;max-width:720px;}
+.logo{font-family:var(--mono);font-size:22px;color:var(--accent);font-weight:700;letter-spacing:.1em;margin-bottom:4px;}
+.tagline{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-bottom:28px;}
+.section{margin-bottom:24px;}
+.section-title{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;}
+.card{background:var(--surface);border:1px solid var(--border);padding:14px 16px;margin-bottom:8px;}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.stat{background:var(--surface-r);padding:10px 14px;}
+.stat-label{font-family:var(--mono);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;}
+.stat-value{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:500;}
+.layer-list{display:flex;flex-direction:column;gap:1px;}
+.layer{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface-r);}
+.layer-name{font-family:var(--mono);font-size:11px;color:var(--accent);min-width:80px;}
+.layer-desc{font-size:11px;color:var(--text-dim);}
+.badge{display:inline-block;font-family:var(--mono);font-size:9px;padding:1px 6px;border:1px solid var(--border);color:var(--text-muted);border-radius:2px;margin-right:4px;}
+.mem-bar-wrap{margin-top:8px;}
+.mem-bar-label{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-bottom:4px;}
+.mem-bar-track{height:6px;background:var(--surface-r);border-radius:3px;}
+.mem-bar-fill{height:6px;background:var(--accent);border-radius:3px;transition:width .5s;}
+.link{color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:10px;}
+.link:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="logo">SubstrateOS</div>
+  <div class="tagline" id="tagline">Browser-native OS kernel · BORK v2.0.0</div>
+
+  <div class="section">
+    <div class="section-title">Live System Stats</div>
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat"><div class="stat-label">Memory Used</div><div class="stat-value" id="s-mem">—</div></div>
+      <div class="stat"><div class="stat-label">Memory Free</div><div class="stat-value" id="s-free">—</div></div>
+      <div class="stat"><div class="stat-label">Pool Size</div><div class="stat-value" id="s-pool">—</div></div>
+      <div class="stat"><div class="stat-label">Processes</div><div class="stat-value" id="s-procs">—</div></div>
+    </div>
+    <div class="mem-bar-wrap card">
+      <div class="mem-bar-label" id="mem-bar-label">Memory — 0 / 0 MB</div>
+      <div class="mem-bar-track"><div class="mem-bar-fill" id="mem-bar-fill" style="width:0"></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">BORK Kernel Architecture</div>
+    <div class="layer-list">
+      <div class="layer"><span class="layer-name">bork.sys.*</span><span class="layer-desc">Public syscall surface — the only interface BARK ever calls</span></div>
+      <div class="layer"><span class="layer-name">ProcessMgr</span><span class="layer-desc">PIDs, FD tables, signals (SIGTERM/KILL/CHLD/USR1/USR2), job control</span></div>
+      <div class="layer"><span class="layer-name">VFS Router</span><span class="layer-desc">Path resolution, mount table, multi-backend dispatch</span></div>
+      <div class="layer"><span class="layer-name">MemFS</span><span class="layer-desc">In-RAM inode tree — /tmp, /dev, /lib, /mnt</span></div>
+      <div class="layer"><span class="layer-name">IDBFS</span><span class="layer-desc">IndexedDB backend — /home/user, /packages (persist across reloads)</span></div>
+      <div class="layer"><span class="layer-name">ProcFS</span><span class="layer-desc">Synthetic /proc — live stats from kernel state</span></div>
+      <div class="layer"><span class="layer-name">ZipFS</span><span class="layer-desc">ZIP archive backend — mount any .zip as read-only filesystem</span></div>
+      <div class="layer"><span class="layer-name">MemMgr</span><span class="layer-desc">Slab allocator over pre-allocated ArrayBuffer pool, dynamic growth</span></div>
+      <div class="layer"><span class="layer-name">TTYDriver</span><span class="layer-desc">Ring-buffer I/O bridge, ANSI passthrough, TIOCSWINSZ</span></div>
+      <div class="layer"><span class="layer-name">NetDevice</span><span class="layer-desc">fetch() bridge at /dev/net — wget/curl via real HTTP</span></div>
+      <div class="layer"><span class="layer-name">Pipe IPC</span><span class="layer-desc">Bidirectional ring buffers for shell pipelines: cmd1 | cmd2 | cmd3</span></div>
+      <div class="layer"><span class="layer-name">ShellParser</span><span class="layer-desc">Pipes, redirects, env vars, quoting, background jobs</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">What makes this different from just JS</div>
+    <div class="card">
+      <p style="color:var(--text-dim);line-height:1.7;font-size:11px;">
+        A static GitHub Pages site can run JavaScript but has no persistent storage, no filesystem abstraction,
+        no process model, no real I/O. Every "app" is a blank canvas reinventing the wheel.<br><br>
+        SubstrateOS provides a <strong style="color:var(--text)">stable platform</strong>: apps call <code style="font-family:var(--mono);color:var(--accent)">bork.sys.*</code>
+        and get a real FS, real persistence, real network, real pipes, real processes. The underlying
+        implementation can be swapped (MemFS → IDBFS → future OPFS) without the app knowing.<br><br>
+        The shell pipeline system (<code style="font-family:var(--mono);color:var(--accent)">cat file | grep foo | wc -l > out.txt</code>) runs across
+        real Pipe objects with backpressure. Output redirection writes to real IDB-backed files.
+        <code style="font-family:var(--mono);color:var(--accent)">wget</code> fetches real URLs and saves to VFS.
+        Drag a ZIP → it mounts as a filesystem with zero extraction.<br><br>
+        This is what GitHub Pages can be if you bring the runtime with you.
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Browser capabilities used</div>
+    <div>
+      <span class="badge">ArrayBuffer</span>
+      <span class="badge">IndexedDB</span>
+      <span class="badge">Web Crypto</span>
+      <span class="badge">fetch()</span>
+      <span class="badge">DecompressionStream</span>
+      <span class="badge">WeakRef</span>
+      <span class="badge">ES Modules</span>
+      <span class="badge">Canvas API</span>
+      <span class="badge">File API</span>
+      <span class="badge">DataTransfer</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Links</div>
+    <div>
+      <a class="link" href="https://github.com/MilkmanAbi/OpenJS-Substrate" target="_blank">github.com/MilkmanAbi/OpenJS-Substrate</a>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createBORK, VERSION } from '../../bork/src/bork.js';
+import CFG from '../../substrate.config.js';
+
+document.getElementById('tagline').textContent = `${CFG.tagline} · BORK v${VERSION}`;
+
+try {
+  const bork = await createBORK({ poolMB: 16, idbName: CFG.fs.idbName });
+  const poll = () => {
+    const m = bork.sys.meminfo();
+    const mb = v => (v/1048576).toFixed(1) + 'MB';
+    document.getElementById('s-mem').textContent  = mb(m.used);
+    document.getElementById('s-free').textContent = mb(m.free);
+    document.getElementById('s-pool').textContent = mb(m.total);
+    document.getElementById('s-procs').textContent= m.processes;
+    document.getElementById('mem-bar-label').textContent = `Memory — ${mb(m.used)} / ${mb(m.total)}`;
+    document.getElementById('mem-bar-fill').style.width = (m.used/m.total*100).toFixed(1) + '%';
+  };
+  poll(); setInterval(poll, 2000);
+} catch {}
+</script>
+</body>
+</html>
