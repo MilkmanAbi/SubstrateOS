@@ -1,0 +1,29 @@
+{
+  "name": "substrate",
+  "version": "2.0.0",
+  "description": "A browser-native backend kernel for static web apps: mountable VFS, CDN-backed git clone with content-addressed caching, a WASI WASM runtime over the VFS, and an in-memory ES module loader. No server, no GUI.",
+  "type": "module",
+  "main": "./src/substrate.js",
+  "module": "./src/substrate.js",
+  "exports": {
+    ".": "./src/substrate.js",
+    "./vfs": "./src/vfs/VFS.js",
+    "./git": "./src/git/GitClient.js",
+    "./wasm": "./src/wasm/WasmRuntime.js",
+    "./modules": "./src/module/ModuleLoader.js",
+    "./errors": "./src/core/errors.js"
+  },
+  "files": ["src"],
+  "sideEffects": false,
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
+  "keywords": [
+    "browser", "vfs", "filesystem", "wasm", "wasi", "git", "clone",
+    "jsdelivr", "esm", "module-loader", "ide", "no-server", "static-site",
+    "content-addressed", "cache", "overlayfs"
+  ],
+  "license": "GPL-2.0-only",
+  "author": "MilkmanAbi",
+  "engines": { "node": ">=20" }
+}
