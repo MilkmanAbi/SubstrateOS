@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Substrate - backend test harness</title>
+<style>
+  /* Deliberately bare. Substrate is a backend; the real UI is your job.
+     This page is a wiring harness to prove the kernel runs in a browser. */
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0d0f12; color: #d6dae0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  header { padding: 12px 16px; border-bottom: 1px solid #20252c; }
+  header b { color: #8ab4f8; }
+  header span { color: #6b7280; }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #20252c; }
+  section { background: #0d0f12; padding: 14px 16px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin: 0 0 10px; }
+  input, textarea, button { font: inherit; }
+  input, textarea { width: 100%; box-sizing: border-box; background: #14171c; color: #d6dae0; border: 1px solid #20252c; border-radius: 4px; padding: 6px 8px; }
+  textarea { resize: vertical; min-height: 54px; }
+  button { background: #1f6feb; color: #fff; border: 0; border-radius: 4px; padding: 7px 12px; cursor: pointer; margin: 8px 6px 0 0; }
+  button.alt { background: #21262d; color: #d6dae0; border: 1px solid #30363d; }
+  button:disabled { opacity: .5; cursor: default; }
+  pre#log { background: #07090b; border: 1px solid #20252c; border-radius: 4px; padding: 10px; height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 0; }
+  .row { margin-bottom: 8px; }
+  .ok { color: #56d364; } .err { color: #f85149; } .dim { color: #6b7280; } .hl { color: #d29922; }
+</style>
+</head>
+<body>
+<header><b>Substrate</b> <span>browser-native backend kernel - test harness (not the IDE; that's yours to build)</span></header>
+<main>
+  <section>
+    <h2>git clone (CDN transport + content-addressed cache)</h2>
+    <div class="row"><input id="repo" value="github:MilkmanAbi/Sage-Playground" spellcheck="false"></div>
+    <div class="row"><input id="into" value="/opt/repo" spellcheck="false"></div>
+    <button id="clone">clone</button>
+    <button id="reclone" class="alt">clone again (watch the cache)</button>
+    <button id="ls" class="alt">ls</button>
+
+    <h2 style="margin-top:22px">wasm over the VFS</h2>
+    <div class="dim">An embedded wasm32-wasi binary that reads <code>input.txt</code> from a preopened VFS dir and echoes it to stdout - the interpreter pattern, minus the interpreter.</div>
+    <div class="row" style="margin-top:8px"><textarea id="src">edit me - this text becomes /work/input.txt, the wasm reads it back</textarea></div>
+    <button id="runwasm">write file + run wasm</button>
+
+    <h2 style="margin-top:22px">import an ES module from the VFS</h2>
+    <button id="runmod">write module + import + call</button>
+  </section>
+  <section>
+    <h2>kernel log</h2>
+    <pre id="log"></pre>
+    <button id="clear" class="alt">clear</button>
+  </section>
+</main>
+
+<script type="module">
+import { createSubstrate } from '../src/substrate.js';
+
+const logEl = document.getElementById('log');
+const log = (msg, cls = '') => {
+  const t = new Date().toISOString().slice(11, 23);
+  logEl.insertAdjacentHTML('beforeend', `<span class="dim">${t}</span>  <span class="${cls}">${msg}</span>\n`);
+  logEl.scrollTop = logEl.scrollHeight;
+};
+document.getElementById('clear').onclick = () => logEl.textContent = '';
+
+// embedded cat.wasm (reads input.txt from preopen, echoes to stdout)
+const CAT_WASM_B64 = "AGFzbQEAAAABIwVgAn9/AX9gCX9/f39/fn5/fwF/YAR/f39/AX9gAX8AYAAAArIBBRZ3YXNpX3NuYXBzaG90X3ByZXZpZXcxDmZkX3ByZXN0YXRfZ2V0AAAWd2FzaV9zbmFwc2hvdF9wcmV2aWV3MQlwYXRoX29wZW4AARZ3YXNpX3NuYXBzaG90X3ByZXZpZXcxB2ZkX3JlYWQAAhZ3YXNpX3NuYXBzaG90X3ByZXZpZXcxCGZkX3dyaXRlAAIWd2FzaV9zbmFwc2hvdF9wcmV2aWV3MQlwcm9jX2V4aXQAAwMCAQQFAwEAAgcTAgZtZW1vcnkCAAZfc3RhcnQABQqLAQGIAQECf0EDQQAQAEEARwRAQQoQBAtBA0EBQRBBCUEAQn9Cf0EAQSAQAUEARwRAQQsQBAtBICgCACEAQcAAQYAENgIAQcQAQYAINgIAIABBwABBAUEoEAJBAEcEQEEMEAQLQSgoAgAhAUHIAEGABDYCAEHMACABNgIAQQFByABBAUEsEAMaQQAQBAsLDwEAQRALCWlucHV0LnR4dA==";
+const b64ToBytes = (b64) => { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; };
+
+const setBusy = (b) => document.querySelectorAll('button').forEach(x => x.disabled = b);
+
+log('booting substrate (persist: IndexedDB)...', 'hl');
+const sb = await createSubstrate({ persist: true });
+sb.on('git:progress', (d) => {
+  if (d.phase === 'fetch') log(`  fetch ${d.loaded}/${d.total} ${d.path}${d.cacheHit ? ' (cache)' : ''}`, 'dim');
+  else log(`git: ${d.phase} ${d.total ?? ''} ${d.provider ?? ''}`.trim());
+});
+sb.on('wasm:exit', (d) => log(`wasm: exit ${d.exitCode}`, d.exitCode ? 'err' : 'ok'));
+await sb.fs.writeFile('/bin/cat.wasm', b64ToBytes(CAT_WASM_B64));
+log('ready. root FS persists across reloads; clone cache too.', 'ok');
+
+const repo = () => document.getElementById('repo').value.trim();
+const into = () => document.getElementById('into').value.trim();
+
+async function doClone(force) {
+  setBusy(true);
+  try {
+    const t = performance.now();
+    const s = await sb.git.clone(repo(), { into: into(), force, filter: p => !p.includes('node_modules') });
+    log(`done: ${s.files} files, fetched ${s.fetched}, reused ${s.reused}, ${(s.bytesDownloaded/1024).toFixed(1)}KB, ${Math.round(performance.now()-t)}ms`, 'ok');
+  } catch (e) { log('clone failed: ' + e.message, 'err'); }
+  finally { setBusy(false); }
+}
+document.getElementById('clone').onclick = () => doClone(false);
+document.getElementById('reclone').onclick = () => doClone(false);
+document.getElementById('ls').onclick = async () => {
+  try {
+    const entries = await sb.fs.list(into());
+    log(`${into()}:  ` + entries.map(e => e.name + (e.type === 'dir' ? '/' : '')).join('  '));
+  } catch (e) { log('ls failed: ' + e.message, 'err'); }
+};
+
+document.getElementById('runwasm').onclick = async () => {
+  setBusy(true);
+  try {
+    await sb.fs.mkdir('/work');
+    await sb.fs.writeText('/work/input.txt', document.getElementById('src').value);
+    const r = await sb.wasm.run('/bin/cat.wasm', { preopens: { '.': '/work' } });
+    log('wasm stdout: ' + JSON.stringify(r.stdoutText), 'hl');
+  } catch (e) { log('wasm run failed: ' + e.message, 'err'); }
+  finally { setBusy(false); }
+};
+
+document.getElementById('runmod').onclick = async () => {
+  setBusy(true);
+  try {
+    await sb.fs.mkdir('/js/lib');
+    await sb.fs.writeText('/js/lib/greet.js', `export const greet = (n) => 'hello, ' + n + ' - from a module living in the VFS';`);
+    await sb.fs.writeText('/js/main.js', `import { greet } from './lib/greet.js'; export const run = () => greet('substrate');`);
+    sb.modules.invalidate('/js/main.js'); sb.modules.invalidate('/js/lib/greet.js');
+    const mod = await sb.modules.import('/js/main.js', { force: true });
+    log('module returned: ' + JSON.stringify(mod.run()), 'hl');
+  } catch (e) { log('module import failed: ' + e.message, 'err'); }
+  finally { setBusy(false); }
+};
+</script>
+</body>
+</html>
